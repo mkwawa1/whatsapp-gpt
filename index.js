@@ -13,7 +13,6 @@ let CONTACTS_FILE = "contacts.json";
 let context = {};
 
 const configuration = new Configuration({
-    // replace your openai token below.
   apiKey: process.env.OPENAIA_API_KEY,
 });
 
@@ -28,24 +27,21 @@ client.on("ready", () => {
 });
 
 client.on("message", async (message) => {
-  var msg = message;
   const contacts = await contactsToAutoRespond(CONTACTS_FILE);
-  const isContact = contacts.filter((contact) => {
-    return contact === message.from.split('@')[0];
-  });
-  if (message.from.split('@')[0] == isContact) {
-    try {
-      
+  const isContact = contacts.includes(message.from.split('@')[0]);
 
+  // Auto reply if number is NOT in contacts.json
+  if (!isContact) {
+    try {
       askChatGPT(message.from, message.body).then(function (resp) {
         context[message.from] = context[message.from] + "\n" + resp;
         console.log("Replying: ", resp);
         client.sendMessage(
-          msg.from,
+          message.from,
           resp.replace("AI:", "").replace("Robot:", "")
         );
         savetoFile(CHAT_CONTEXT, context);
-      },function(err){
+      }, function(err) {
         console.log("Error: ", err);
       });
     } catch (e) {
@@ -57,25 +53,22 @@ client.on("message", async (message) => {
 client.initialize();
 contactsServer;
 
-
 async function askChatGPT(from, q) {
-  context[from] === undefined
-    ? (context[from] = "Human: " + q)
-    : (context[from] = context[from] + "\n Human:" + q);
+  context[from] = context[from] ? context[from] + "\nHuman: " + q : "Human: " + q;
+
   const completion = await openai.createCompletion({
     model: "text-davinci-003",
-    temperature: 0.9,
+    temperature: 0.7,
     max_tokens: 150,
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0.6,
-    prompt: context[from],
-    stop: [" Human:", " AI:"],
+    prompt: `Jibu meseji hii kwa lugha ya Kiswahili au Kiingereza kulingana na lugha ya mteja. Usijionyeshe kama AI. Jibu kwa sauti ya kirafiki ya Lawrence wa Moshi.\n${context[from]}`,
+    stop: [" Human:", " AI:"]
   });
+
   console.log("Q: ", context[from]);
-  const resp = completion.data.choices[0].text;
-  //   console.log(resp.toString());
-  return resp;
+  return completion.data.choices[0].text.trim();
 }
 
 function savetoFile(file, data) {
